@@ -35,7 +35,6 @@ router.post('/', (req, res) => {
         .catch((error) => {
           console.log(error)
           done()
-          //res.status(400).render('main/404')
         })
       })
       .catch((error) => {
@@ -67,31 +66,50 @@ router.get('/:id/edit',(req,res)=>{
   
 })
 
-router.put('/edit',(req,res)=>{
+
+router.put('/edit', (req, res) => {
   let categories = req.body.categories.split(',')
-  categories= categories.map(c=>c.trim())
-    db.project.update( req.body,
-      {
-      where: {id: req.body.projectId},
-      returning: true
+  categories = categories.map(c => c.trim())
+  db.project.update(req.body,
+  {
+    where : {id: req.body.projectId},
+    returning : true
+  })
+  .then(([rows, project]) => {
+    console.log(project)
+    db.category.findAll({
+      where: {name: categories}
     })
-    .then(([rows,project])=>{
-      console.log("put",project)
-      db.category.findAll({
-        where: {name: categories}
-      })
-      .then(cats=>{
-       // project.set(db.category,cats)
-       project[0].setCategories(cats)
-        .then(()=>{
+    .then(cats => {
+      project[0].setCategories(cats)
+      .then(() => {
+        async.forEach(categories, (c, done) => {
+          db.category.findOrCreate({
+            where: { name: c }
+          })
+          .then(([category, wasCreated]) => {
+            project[0].addCategory(category)
+            .then(() => {
+              done()
+            })
+            .catch(done)
+          })
+          .catch(done)
+        }, () => {
+          // Final function; runs once when everything is done
           res.redirect('/projects/'+req.body.projectId)
         })
       })
     })
-    .catch((error) => {
-      res.status(400).render('main/404')
-    })
+  })
+  .catch(err => {
+    console.log(err)
+    res.status(400).render('main/404')
+  })
 })
+
+
+
 
 router.delete('/:id', (req,res) => {
   db.categoriesProjects.destroy({
